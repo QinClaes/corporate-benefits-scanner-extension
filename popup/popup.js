@@ -23,8 +23,25 @@ const els = {
   syncBtn: document.getElementById("sync-button"),
   syncStatus: document.getElementById("sync-status"),
   currentTab: document.getElementById("current-tab"),
-  partnerList: document.getElementById("partner-list")
+  partnerList: document.getElementById("partner-list"),
+  versionLabel: document.getElementById("version-label")
 };
+
+// Populate the version label from the manifest. The manifest is the single
+// source of truth for the extension version (see AGENTS.md "Don't break
+// these contracts" — version pin), so the popup must read it dynamically
+// rather than hardcoding a number that will inevitably drift.
+if (els.versionLabel && chrome?.runtime?.getManifest) {
+  try {
+    const manifest = chrome.runtime.getManifest();
+    if (manifest?.version) {
+      els.versionLabel.textContent = `v${manifest.version}`;
+    }
+  } catch {
+    // If the API is unavailable for any reason, just leave the label empty
+    // rather than showing a misleading hardcoded version.
+  }
+}
 
 let currentSubdomain = "";
 let partners = []; // resolved partner list (synced or bundled)
