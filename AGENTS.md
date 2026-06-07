@@ -16,7 +16,7 @@ The codebase is shared between Chrome and Firefox; only the manifest file differ
 
 ```
 benefits-notifier/
-├── manifest.json              Chrome MV3 manifest. v0.2.1. Background as `service_worker` (module).
+├── manifest.json              Chrome MV3 manifest. Background as `service_worker` (module). Version of record for the whole project — see "Don't break these contracts".
 ├── manifest.firefox.json      Firefox 121+ MV3 manifest. Same shape, but background uses `scripts: ["service-worker.js"]` with `"type": "module"`, plus the required `browser_specific_settings.gecko.id` (`benefits-notifier@qinclaes.dev`) and `strict_min_version: "121.0"`. To load: copy the repo to a scratch dir, rename this file → `manifest.json`, then `about:debugging` → "Load Temporary Add-on…".
 ├── service-worker.js          Background SW: tab evaluation, badge, content-script injection, alarm-driven sync.
 ├── content.js                 Toast renderer; idempotent; classic script (no imports).
@@ -80,6 +80,7 @@ A `chrome.alarms.create("refresh-partners", { periodInMinutes: REFRESH_PERIOD_MI
 - **`composeOfferUrl(subdomain, offerPath)`** — requires `offerPath` to start with `/`. Returns `null` on any other input. Don't relax this without checking every caller.
 - **Bundled seed (`data/offers.js`)** — read by `lib/sync.js:getEffectivePartners` only when no synced cache exists. If the seed schema changes, update the mapping in `getEffectivePartners`.
 - **Idempotency in `content.js`** — the script self-guards via `window.__benefitsNotifierInstalled`. Multiple injections on the same tab are expected and must be safe.
+- **Version is a single source of truth: `manifest.json` `"version"`.** `manifest.firefox.json` `"version"` MUST match (the release workflow fails the build otherwise). No other file embeds a version number — the README and AGENTS.md must NOT mention a specific version (`v0.2.1`, `v0.2.2`, etc.) anywhere except in illustrative examples inside `RELEASING.md`. If you find yourself writing `v0.X.Y` in user-facing prose, stop and rephrase. Releases are surfaced via the `releases/latest/download/...` URLs in `README.md`, which always resolve to the most recent tag — that's the mechanism that keeps docs in sync.
 
 ## No-build promise
 

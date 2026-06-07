@@ -9,7 +9,7 @@ shared; only the manifest differs between the two targets.
 
 ## Status
 
-**v0.2.1 — automated weekly sync.** The extension fetches a fresh partner list
+**Automated weekly sync.** The extension fetches a fresh partner list
 from a self-hosted n8n webhook every 24 hours (and on first install). The
 webhook is backed by:
 
