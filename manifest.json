@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Benefits@Work Notifier",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Alerts you when you visit a partner site of your Benefits@Work platform and links you to the matching offer.",
   "background": {
     "service_worker": "service-worker.js",
