@@ -16,14 +16,14 @@ webhook is backed by:
 - **Weekly scraper** (Sundays @ 04:00 UTC) that logs into the platform,
   crawls all 11 categories, parses every offer card, fetches each offer page,
   and extracts the merchant domain(s) from the CTA's `data-href` attribute.
-- **AI domain enrichment** (Claude Haiku via the IBM ICA OpenAI-compatible
+- **AI domain enrichment** (Claude Haiku via an OpenAI-compatible LLM
   gateway) that runs **automatically** after every scrape. It walks every
   partner row, takes the currently-stored domains as context, and decides the
   final list — keeping correct entries, dropping affiliate domains, and
   expanding national TLD variants (`.com` / `.be` / `.nl` / `.fr`) where
   appropriate.
-- **Public publish webhook** at `https://n8n.qinclaes.dev/webhook/benefits-partners`
-  serving the list as `application/json`.
+- **Public publish webhook** serving the list as `application/json`. The
+  default endpoint is hardcoded in `lib/sync.js`.
 
 If the webhook is unreachable on first install, the extension falls back to a
 small bundled seed list (`data/offers.js`) so it still works.
@@ -112,7 +112,7 @@ To cut a release (produces both artifacts via GitHub Actions), see
 
 1. Click the extension icon to open the popup.
 2. In the **Platform subdomain** field, enter your company's subdomain (e.g.
-   `ibmcic` for `ibmcic.benefitsatwork.be`). Letters, digits and hyphens only.
+   `yourcompany` for `yourcompany.benefitsatwork.be`). Letters, digits and hyphens only.
 3. Click **Save**.
 4. The first sync runs automatically on install. You can also click
    **Sync now** to refresh on demand.
@@ -122,38 +122,65 @@ Until a subdomain is set, the toast still appears on partner sites but its
 
 ## How it works
 
-```
-chrome.tabs.onUpdated → service-worker.js
-                         │
-                         ├─ load synced partner list from chrome.storage.local
-                         │
-                         ├─ findOffer(hostname) against the synced list
-                         │
-                         ├─ if match:
-                         │    chrome.action.setBadgeText("✓")
-                         │    chrome.scripting.executeScript(content.js)
-                         │    chrome.scripting.executeScript(window.__benefitsNotifierShow(payload))
-                         │
-                         └─ if no match:
-                              chrome.action.setBadgeText("")
+### Runtime flow (in the browser)
 
-chrome.alarms.refresh-partners (every 24 h)
-                         │
-                         └─ lib/sync.js → fetch webhook → save to chrome.storage.local
+When the user navigates, the service worker checks the hostname against a
+cached partner list and shows a toast if there's a match. The popup writes
+the subdomain and triggers manual syncs.
+
+```mermaid
+flowchart LR
+    U[User visits a website] --> SW[service-worker.js]
+    SW -->|hostname lookup| C[(partner cache<br/>chrome.storage.local)]
+    C --> M{match?}
+    M -->|no| BX[clear badge]
+    M -->|yes| B[set badge ✓]
+    B --> I[inject content.js]
+    I --> T[render toast<br/>links to partner offer]
+    P[popup] -.->|set subdomain<br/>or sync| C
+```
+
+### Backend pipeline (n8n side)
+
+The n8n side scrapes the partner platform, runs AI enrichment for national
+TLD variants, and exposes the result via a public webhook. The extension
+fetches that webhook every 24 hours and on first install.
+
+```mermaid
+flowchart LR
+    subgraph backend [n8n backend]
+        S[Scraper workflow<br/>weekly, Sun 04:00 UTC]
+        DT[(Partners<br/>Data Table)]
+        AI[AI domain enrichment<br/>Claude Haiku]
+        WH[Publish webhook<br/>GET /webhook/benefits-partners]
+        S -->|upsert rows| DT
+        S -->|trigger on completion| AI
+        AI -->|update domains_auto| DT
+        DT -->|read active rows| WH
+    end
+    subgraph extension [browser extension]
+        AL[chrome.alarms<br/>every 24h]
+        SY[lib/sync.js]
+        PC[(partner cache)]
+    end
+    AL --> SY
+    SY -->|HTTPS GET| WH
+    WH -->|JSON partners list| SY
+    SY --> PC
 ```
 
 Storage layout (`chrome.storage.local`):
 
 | Key | Type | Purpose |
 |---|---|---|
-| `subdomain` | string | Company subdomain (e.g. `ibmcic`) |
+| `subdomain` | string | Company subdomain (e.g. `yourcompany`) |
 | `syncEndpoint` | string | n8n webhook URL (default below; user-editable later) |
 | `partners` | array | Cached partner list from the webhook |
 | `syncedAt` | ISO datetime | Last successful sync |
 | `syncError` | string \| null | Last sync error |
 | `syncCount` | number | Number of partners in last sync |
 
-Default endpoint: `https://n8n.qinclaes.dev/webhook/benefits-partners`
+Default endpoint: see `DEFAULT_SYNC_ENDPOINT` in `lib/sync.js`.
 
 ## File layout
 
@@ -184,12 +211,12 @@ For the n8n side (setup, env vars, Data Table schema, re-import order), see [`n8
 
 ## n8n backend
 
-Three workflows hosted at `https://n8n.qinclaes.dev`. JSON + `.ts` exports of all three live under `n8n/workflows/` so a fresh n8n instance can re-import them; see [`n8n/README.md`](n8n/README.md) for the import order and the env vars (`BENEFITS_EMAIL`, `BENEFITS_PASSWORD`, `N8N_API_KEY`) you need first.
+Three workflows hosted on a self-hosted n8n instance. JSON + `.ts` exports of all three live under `n8n/workflows/` so a fresh n8n instance can re-import them; see [`n8n/README.md`](n8n/README.md) for the import order and the env vars (`BENEFITS_EMAIL`, `BENEFITS_PASSWORD`, `BENEFITS_PLATFORM_HOST`, `N8N_API_KEY`) you need first.
 
 | Workflow | ID | Purpose |
 |---|---|---|
 | **Scraper (weekly)** | `NFJp7ok1KAJiATza` | Login + crawl + parse + upsert to `partners` table. Runs Sundays @ 04:00 UTC. Chains the AI enrichment workflow on completion. |
-| **AI domain enrichment** | `hZ8RXCqu0NkYblga` | Claude Haiku via ICA. Reviews every row, takes existing domains as context, produces the final list. Triggered by the scraper. |
+| **AI domain enrichment** | `hZ8RXCqu0NkYblga` | Claude Haiku via an OpenAI-compatible LLM gateway. Reviews every row, takes existing domains as context, produces the final list. Triggered by the scraper. |
 | **Publish webhook** | `0s5zRkxl2B0wbtbp` | Public GET `/webhook/benefits-partners`. Reads `domains_auto`, returns active partners. |
 
 The `partners` n8n Data Table holds:
@@ -221,7 +248,7 @@ trusted as the final authority. If the AI gets a partner wrong, edit
 | `scripting` | Inject `content.js` into matched tabs only (no static `content_scripts`). |
 | `alarms` | 24 h periodic partner-list refresh. |
 | `host_permissions: ["<all_urls>"]` | Detect partner sites at any domain. The extension does not read page content beyond what's needed to inject the toast. |
-| `host_permissions: ["https://n8n.qinclaes.dev/*"]` | Sync the partner list from the publish webhook. |
+| `host_permissions: ["https://<n8n-host>/*"]` | Sync the partner list from the publish webhook. The exact host is in `lib/sync.js` and both manifests' `host_permissions`. |
 
 ## License
 

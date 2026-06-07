@@ -36,15 +36,15 @@ const loginRequest = node({
     name: 'POST /login',
     parameters: {
       method: 'POST',
-      url: 'https://ibmcic.benefitsatwork.be/login',
+      url: 'https://yourcompany.benefitsatwork.be/login',
       sendHeaders: true,
       headerParameters: {
         parameters: [
           { name: 'User-Agent', value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' },
           { name: 'Accept', value: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
           { name: 'Accept-Language', value: 'en,nl;q=0.9,fr;q=0.8' },
-          { name: 'Origin', value: 'https://ibmcic.benefitsatwork.be' },
-          { name: 'Referer', value: 'https://ibmcic.benefitsatwork.be/login' }
+          { name: 'Origin', value: 'https://yourcompany.benefitsatwork.be' },
+          { name: 'Referer', value: 'https://yourcompany.benefitsatwork.be/login' }
         ]
       },
       sendBody: true,
@@ -67,7 +67,7 @@ const loginRequest = node({
 });
 
 // (Code-node JS bodies omitted from this archive — see the live workflow.)
-// See live workflow: https://n8n.qinclaes.dev/workflow/HN0vbOkF0Zt2Arco
+// See live workflow: https://n8n.example.com/workflow/HN0vbOkF0Zt2Arco
 
 export default workflow('benefits-step1-login-dump-v2', 'Benefits@Work — Step 1 (v2)')
   .add(startTrigger)

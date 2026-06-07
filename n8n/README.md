@@ -2,9 +2,9 @@
 
 Self-hosted n8n instance powering the partner list for the Benefits@Work Notifier Chrome extension.
 
-- **Live instance**: `https://n8n.qinclaes.dev`
-- **Public endpoint** (consumed by the extension): `GET https://n8n.qinclaes.dev/webhook/benefits-partners`
-- **Author's n8n version family**: 1.x (Code node v2, Webhook node v2.1, scheduleTrigger v1.3, langchain.agent v3.1)
+- **Live instance**: configured at deploy time; see `lib/sync.js:DEFAULT_SYNC_ENDPOINT` in the extension for the host the published artifact actually hits.
+- **Public endpoint** (consumed by the extension): `GET /webhook/benefits-partners` on the live n8n instance. Workflow exports use `n8n.example.com` as a placeholder host.
+- **n8n version family**: 1.x (Code node v2, Webhook node v2.1, scheduleTrigger v1.3, langchain.agent v3.1)
 
 This directory contains:
 
@@ -29,7 +29,7 @@ This directory contains:
 
 | Credential name (suggested) | Type | Used by | Notes |
 |---|---|---|---|
-| _IBM ICA OpenAI_ (free choice) | `openAiApi` | `Claude Haiku (ICA)` node in 03-ai-enrichment | Configure on the credential record: base URL = your IBM ICA OpenAI-compatible gateway, API key = your ICA token. The model name (`claude-haiku-4-5`) is set on the node, not the credential. |
+| _LLM Gateway_ (free choice) | `openAiApi` | `Claude Haiku` node in 03-ai-enrichment | Configure on the credential record: base URL = your OpenAI-compatible LLM gateway, API key = your provider's token. The model name (`claude-haiku-4-5`) is set on the node, not the credential. |
 
 That's the only credential record needed. The platform login does **not** use a credential; it reads `$env.BENEFITS_EMAIL` / `$env.BENEFITS_PASSWORD` directly. The Data Table API uses `$env.N8N_API_KEY`.
 
@@ -41,12 +41,13 @@ See `.env.example` for the full list. Set them on the n8n instance (e.g. via Doc
 |---|---|---|
 | `BENEFITS_EMAIL` | 02-scraper, 01-archives | Platform login email (e.g. `me@example.com`). |
 | `BENEFITS_PASSWORD` | 02-scraper, 01-archives | Platform login password. |
+| `BENEFITS_PLATFORM_HOST` | 02-scraper | Full Benefits@Work URL of your tenant, e.g. `https://yourcompany.benefitsatwork.be`. Used for login + offer fetches. |
 | `N8N_API_KEY` | 02-scraper, 03-ai-enrichment, 04-publish-webhook | n8n API token used to call `/api/v1/data-tables/<id>/rows` from inside Code nodes. Generate one at Settings → n8n API. |
 
 ## Required Data Table
 
 Name: `partners`.
-Live ID on the author's instance: `AszlR72OLpvemUAf` (hardcoded inside the workflows' Code nodes).
+Live ID used in the workflow exports: `AszlR72OLpvemUAf` (hardcoded inside the workflows' Code nodes).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -99,9 +100,9 @@ If you change this shape, update `lib/sync.js:fetchPartners` validation to match
 
 ## Re-importing on a fresh n8n instance
 
-1. **Provision env vars**: `BENEFITS_EMAIL`, `BENEFITS_PASSWORD`, `N8N_API_KEY`.
+1. **Provision env vars**: `BENEFITS_EMAIL`, `BENEFITS_PASSWORD`, `BENEFITS_PLATFORM_HOST`, `N8N_API_KEY`.
 2. **Create the `partners` Data Table** with the columns above. Copy its ID from the URL (`/data-tables/<ID>`).
-3. **Create the OpenAI-compatible credential** for the IBM ICA gateway (or your alternative LLM provider).
+3. **Create the OpenAI-compatible credential** for your LLM provider (any OpenAI-compatible chat-completions gateway will work).
 4. **Import workflows in this order** (UI: Workflows → Import from File):
    1. `04-publish-webhook.json` — no other workflow depends on it; safe to import first.
    2. `03-ai-enrichment.json` — note its new workflow ID once imported.
@@ -110,7 +111,7 @@ If you change this shape, update `lib/sync.js:fetchPartners` validation to match
    - `02-scraper.json` → "Process offer (fetch + extract + upsert)" node, `TABLE_ID` constant.
    - `03-ai-enrichment.json` → "Fetch all rows" + "Upsert AI domains" nodes.
    - `04-publish-webhook.json` → "Read partners table" node.
-6. **Replace the hardcoded n8n base URL** `https://n8n.qinclaes.dev` with your instance's URL in the same Code nodes (it's the prefix to `/api/v1/data-tables/...`).
+6. **Replace the placeholder n8n base URL** `https://n8n.example.com` with your instance's URL in the same Code nodes (it's the prefix to `/api/v1/data-tables/...`).
 7. **Activate** the publish-webhook workflow first (so the URL is live), then the AI-enrichment workflow (so the scraper can call it), then the scraper workflow.
 8. **Trigger the scraper manually** once and watch the Executions tab. Expect ~700 offers and a single execution to take several minutes (it processes one offer at a time via splitInBatches).
 9. **Update the Chrome extension** to point at your webhook: edit `lib/sync.js:DEFAULT_SYNC_ENDPOINT` (or set `syncEndpoint` in `chrome.storage.local` at runtime), and add your host to `manifest.json:host_permissions`.
@@ -122,11 +123,11 @@ If you change this shape, update `lib/sync.js:fetchPartners` validation to match
 | Re-scrape now | Open `02-scraper` → click "Execute Workflow". |
 | Re-run AI enrichment only | Open `03-ai-enrichment` → click "Execute Workflow" on the `Run AI enrichment` trigger. |
 | Manually fix one partner's domains | Edit the row in the `partners` Data Table UI; set `domains_auto` to a JSON-stringified array. The publish webhook will pick it up on the next request. |
-| Add a tenant other than `ibmcic` | The platform host `https://ibmcic.benefitsatwork.be` is hardcoded in the scraper. Either parameterize with another env var (e.g. `BENEFITS_PLATFORM_HOST`) or duplicate the workflow. |
+| Add a tenant other than the default | Set `$env.BENEFITS_PLATFORM_HOST` on your n8n instance to your tenant's full URL (e.g. `https://yourcompany.benefitsatwork.be`). The scraper reads it on every run. |
 
 ## Gotchas
 
 - The platform expects the form field names `loginData[email]` and `loginData[password]` (with square brackets), plus `cbg3-submit=Inloggen`. See `research/NOTES.md`. An earlier version of the workflow used `email`/`password` and silently failed.
 - The n8n Code-node sandbox does not expose the `URL` constructor. The scraper uses a manual regex (`/^https?:\/\/([^\/?#:]+)/`) for hostname extraction.
-- AI enrichment uses `lmChatOpenAi` (not the dedicated Anthropic node) because the IBM ICA gateway speaks OpenAI's chat-completions protocol. Model name is set on the node as an expression: `={{ "claude-haiku-4-5" }}`.
+- AI enrichment uses `lmChatOpenAi` (not the dedicated Anthropic node) because any OpenAI-compatible chat-completions gateway can serve the model. Model name is set on the node as an expression: `={{ "claude-haiku-4-5" }}`.
 - The publish webhook returns CORS `*`. If you ever put it behind auth, the extension will need updating (it currently sends only `Accept: application/json`).

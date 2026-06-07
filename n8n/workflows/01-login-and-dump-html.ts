@@ -1,7 +1,7 @@
 // n8n workflow: Step 1 of the Benefits@Work scraper.
 //
 // Purpose:
-//   - Log into ibmcic.benefitsatwork.be via form-POST.
+//   - Log into yourcompany.benefitsatwork.be via form-POST.
 //   - Capture the CBG3FE session cookie from the login response.
 //   - Use that cookie to fetch the logged-in homepage.
 //   - Emit the HTML and a few diagnostics so we can inspect what the
@@ -41,7 +41,7 @@ const loginRequest = node({
     name: 'POST /login',
     parameters: {
       method: 'POST',
-      url: 'https://ibmcic.benefitsatwork.be/login',
+      url: 'https://yourcompany.benefitsatwork.be/login',
       sendHeaders: true,
       headerParameters: {
         parameters: [
@@ -52,8 +52,8 @@ const loginRequest = node({
           },
           { name: 'Accept', value: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
           { name: 'Accept-Language', value: 'en,nl;q=0.9,fr;q=0.8' },
-          { name: 'Origin', value: 'https://ibmcic.benefitsatwork.be' },
-          { name: 'Referer', value: 'https://ibmcic.benefitsatwork.be/login' }
+          { name: 'Origin', value: 'https://yourcompany.benefitsatwork.be' },
+          { name: 'Referer', value: 'https://yourcompany.benefitsatwork.be/login' }
         ]
       },
       sendBody: true,
@@ -131,7 +131,7 @@ const fetchHome = node({
     name: 'GET / (logged in)',
     parameters: {
       method: 'GET',
-      url: 'https://ibmcic.benefitsatwork.be/',
+      url: 'https://yourcompany.benefitsatwork.be/',
       sendHeaders: true,
       headerParameters: {
         parameters: [

@@ -5,7 +5,7 @@ Each production workflow is exported in two formats:
 - **`.json`** — direct re-import into n8n via *Workflows → Import from File*. This is the source of truth.
 - **`.ts`** — readable archive in a homegrown SDK style. Useful for code review / diff. **Not directly importable** into n8n; the SDK referenced in the imports does not exist as an npm package — it's a documentation convention, kept for legibility.
 
-| File | Live ID on `n8n.qinclaes.dev` | Status |
+| File | Original workflow ID | Status |
 |---|---|---|
 | `02-scraper.json` + `.ts` | `NFJp7ok1KAJiATza` | Production (active) |
 | `03-ai-enrichment.json` + `.ts` | `hZ8RXCqu0NkYblga` | Production (active) |

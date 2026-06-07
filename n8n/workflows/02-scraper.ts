@@ -1,12 +1,13 @@
 // n8n workflow: Step 2 of the Benefits@Work scraper.
 //
 // Live workflow ID: NFJp7ok1KAJiATza
-// Live URL:         https://n8n.qinclaes.dev/workflow/NFJp7ok1KAJiATza
+// Live URL:         https://n8n.example.com/workflow/NFJp7ok1KAJiATza
 // Authoritative copy for re-import: ./02-scraper.json
 //
 // Purpose:
 //   - Run weekly (Sundays 04:00 UTC) and on manual trigger.
-//   - Log into ibmcic.benefitsatwork.be using BENEFITS_EMAIL/BENEFITS_PASSWORD env vars.
+//   - Log into the Benefits@Work tenant at $env.BENEFITS_PLATFORM_HOST using
+//     $env.BENEFITS_EMAIL / $env.BENEFITS_PASSWORD.
 //   - Fan out across 11 categories (IDs hardcoded in "Extract session cookie").
 //   - Parse offer cards out of each category overview page (3 passes).
 //   - Deduplicate by offerId.
@@ -23,8 +24,8 @@
 //   - The Data Table API calls use env var N8N_API_KEY in the X-N8N-API-KEY header.
 //
 // Important hardcoded values to update if you re-import elsewhere:
-//   - Tenant subdomain   "ibmcic.benefitsatwork.be"  (in login URL + GET /overview/:catId + offer fetch)
-//   - n8n instance host  "n8n.qinclaes.dev"          (in Data Table API URLs)
+//   - Platform host      $env.BENEFITS_PLATFORM_HOST  (e.g. https://yourcompany.benefitsatwork.be)
+//   - n8n instance host  hardcoded in Data Table API URLs (search for n8n.example.com)
 //   - Data Table ID      "AszlR72OLpvemUAf"          (in upsert + AI-enrichment fetch)
 //   - AI workflow target "hZ8RXCqu0NkYblga"          (in "Trigger AI enrichment")
 
@@ -62,15 +63,15 @@ const loginRequest = node({
     position: [544, 304],
     parameters: {
       method: 'POST',
-      url: 'https://ibmcic.benefitsatwork.be/login',
+      url: expr('{{ $env.BENEFITS_PLATFORM_HOST }}/login'),
       sendHeaders: true,
       headerParameters: {
         parameters: [
           { name: 'User-Agent', value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' },
           { name: 'Accept', value: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
           { name: 'Accept-Language', value: 'nl,en;q=0.9' },
-          { name: 'Origin', value: 'https://ibmcic.benefitsatwork.be' },
-          { name: 'Referer', value: 'https://ibmcic.benefitsatwork.be/login' }
+          { name: 'Origin', value: expr('{{ $env.BENEFITS_PLATFORM_HOST }}') },
+          { name: 'Referer', value: expr('{{ $env.BENEFITS_PLATFORM_HOST }}/login') }
         ]
       },
       sendBody: true,
@@ -134,14 +135,15 @@ const fetchOverviews = node({
     name: 'GET /overview/:catId',
     position: [1152, 304],
     parameters: {
-      jsCode: `const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+      jsCode: `const HOST = $env.BENEFITS_PLATFORM_HOST;
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 const results = [];
 for (const it of items) {
   const { cbg3fe, catId, catName } = it.json;
   try {
     const res = await this.helpers.request({
       method: 'GET',
-      uri: 'https://ibmcic.benefitsatwork.be/overview/' + catId,
+      uri: HOST + '/overview/' + catId,
       headers: {
         'User-Agent': UA,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',

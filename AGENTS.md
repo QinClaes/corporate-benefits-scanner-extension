@@ -6,9 +6,9 @@ Orientation file for AI assistants and human contributors. Keep it short, fact-d
 
 A Chrome / Firefox MV3 extension (vanilla JS, no build step) plus a self-hosted n8n backend.
 
-When a user visits a partner site of `<TENANT>.benefitsatwork.be` (e.g. `ibmcic.benefitsatwork.be`), the extension shows a Honey-style toast in the bottom-right that deep-links to the matching offer page on the user's company portal. The list of partners + their merchant domains is scraped weekly from the platform by an n8n workflow, enriched with Claude Haiku for national-TLD variants, and served to the extension via a public webhook.
+When a user visits a partner site of `<TENANT>.benefitsatwork.be` (e.g. `yourcompany.benefitsatwork.be`), the extension shows a Honey-style toast in the bottom-right that deep-links to the matching offer page on the user's company portal. The list of partners + their merchant domains is scraped weekly from the platform by an n8n workflow, enriched with Claude Haiku for national-TLD variants, and served to the extension via a public webhook.
 
-Canonical tenant in this repo: **`ibmcic`** (IBM CIC). The extension is tenant-agnostic — users set their subdomain in the popup.
+Examples in this repo use `yourcompany` as a placeholder tenant subdomain. The extension is tenant-agnostic — users set their subdomain in the popup. The scraper workflow reads its target host from `$env.BENEFITS_PLATFORM_HOST`.
 
 The codebase is shared between Chrome and Firefox; only the manifest file differs (see "Repo map" below). Firefox target version is **121+** so we can keep ESM imports in the background script (`"type": "module"` is supported on `background.scripts` from FF 121).
 
@@ -25,7 +25,7 @@ benefits-notifier/
 │   └── sync.js                chrome.storage caching of partner list; fetch from n8n webhook; bundled-seed fallback.
 ├── popup/
 │   ├── popup.html             Subdomain field + "Sync now" + current-tab card + partner list.
-│   ├── popup.css              Carbon-ish slate/tan palette sampled from ibmcic.benefitsatwork.be.
+│   ├── popup.css              Slate/tan palette matched to the partner portal styles.
 │   └── popup.js               ESM; reads/writes storage; talks to SW via runtime.sendMessage.
 ├── data/
 │   └── offers.js              Bundled seed of 10 partners. Used only when the webhook has never succeeded.
@@ -93,23 +93,23 @@ For Firefox, copy the repo to a scratch directory, rename `manifest.firefox.json
 ## Sensitive values policy
 
 Already exposed in this repo (and therefore safe to reference in new docs):
-- `qinclaes.dev` — author's n8n host.
-- `ibmcic` — canonical tenant subdomain.
+- `n8n.example.com` — placeholder n8n host used in workflow exports. The live n8n host is hardcoded in `lib/sync.js` (`DEFAULT_SYNC_ENDPOINT`) and the manifests' `host_permissions` for operational reasons; treat that constant as the single source of truth and don't mention it in documentation.
+- `yourcompany` — placeholder tenant subdomain used in docs and `.env.example`.
 - n8n workflow IDs `NFJp7ok1KAJiATza`, `hZ8RXCqu0NkYblga`, `0s5zRkxl2B0wbtbp`, `HN0vbOkF0Zt2Arco`.
 - n8n Data Table ID `AszlR72OLpvemUAf`.
-- IBM ICA gateway model name `claude-haiku-4-5`.
+- LLM model name `claude-haiku-4-5` (configurable on the Claude Haiku node).
 
 Never commit:
 - Real platform email or password (use `BENEFITS_EMAIL` / `BENEFITS_PASSWORD` env vars in n8n).
 - Real `CBG3FE` cookie values from a session.
-- Real `N8N_API_KEY`, IBM ICA tokens, OpenAI keys, or any other API token.
+- Real `N8N_API_KEY`, LLM provider tokens, OpenAI keys, or any other API token.
 - HTML dumps with personal data — `n8n/research/` is self-gitignored for this reason; keep it that way.
 
 ## Common-task recipes
 
 - **Test the toast on a partner site (no n8n needed)**:
   1. Load unpacked from `chrome://extensions`.
-  2. Open the popup → set subdomain to e.g. `ibmcic` → Save.
+  2. Open the popup → set subdomain to e.g. `yourcompany` → Save.
   3. The bundled seed (`data/offers.js`) covers adidas, garmin, expedia, kinepolis, dyson, sixt, philips, torfs, iciparisxl, hema. Visit any one of them (e.g. `https://www.adidas.com/`).
   4. Toast should appear bottom-right; badge should show `✓`.
 

@@ -23,7 +23,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const TABLE_ID = 'AszlR72OLpvemUAf';\nconst API_KEY = $env.N8N_API_KEY || '';\nconst BASE = 'https://n8n.qinclaes.dev/api/v1/data-tables/' + TABLE_ID + '/rows';\nlet allRows = [];\nlet cursor = null;\nlet safety = 0;\nwhile (safety < 50) {\n  const url = BASE + (cursor ? ('?cursor=' + encodeURIComponent(cursor)) : '');\n  const res = await this.helpers.request({\n    method: 'GET', uri: url,\n    headers: { 'X-N8N-API-KEY': API_KEY, 'Accept': 'application/json' },\n    json: true, simple: false, resolveWithFullResponse: false, timeout: 15000\n  });\n  const rows = (res && res.data) || [];\n  allRows = allRows.concat(rows);\n  cursor = (res && res.nextCursor) || null;\n  if (!cursor) break;\n  safety++;\n}\nreturn [{ json: { rows: allRows, count: allRows.length } }];"
+        "jsCode": "const TABLE_ID = 'AszlR72OLpvemUAf';\nconst API_KEY = $env.N8N_API_KEY || '';\nconst BASE = 'https://n8n.example.com/api/v1/data-tables/' + TABLE_ID + '/rows';\nlet allRows = [];\nlet cursor = null;\nlet safety = 0;\nwhile (safety < 50) {\n  const url = BASE + (cursor ? ('?cursor=' + encodeURIComponent(cursor)) : '');\n  const res = await this.helpers.request({\n    method: 'GET', uri: url,\n    headers: { 'X-N8N-API-KEY': API_KEY, 'Accept': 'application/json' },\n    json: true, simple: false, resolveWithFullResponse: false, timeout: 15000\n  });\n  const rows = (res && res.data) || [];\n  allRows = allRows.concat(rows);\n  cursor = (res && res.nextCursor) || null;\n  if (!cursor) break;\n  safety++;\n}\nreturn [{ json: { rows: allRows, count: allRows.length } }];"
       },
       "id": "a8805a25-e58a-440c-8a2a-6443b2af4c97",
       "name": "Read partners table",
@@ -70,7 +70,7 @@
     "Build JSON response": { "main": [[{ "node": "Respond with partners JSON", "type": "main", "index": 0 }]] }
   },
   "meta": {
-    "exportedFrom": "Live workflow ID 0s5zRkxl2B0wbtbp on https://n8n.qinclaes.dev",
+    "exportedFrom": "Live workflow ID 0s5zRkxl2B0wbtbp on https://n8n.example.com",
     "exportedAt": "2026-06-03",
     "notes": "Public GET webhook; no auth. Production path: /webhook/benefits-partners. After import: set env var N8N_API_KEY and update the Data Table ID 'AszlR72OLpvemUAf' inside the 'Read partners table' Code node. Response shape is the contract consumed by lib/sync.js:fetchPartners — partners with empty domains arrays are filtered out before responding."
   }

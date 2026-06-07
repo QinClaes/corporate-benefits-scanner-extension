@@ -1,8 +1,8 @@
 // n8n workflow: Public publish webhook.
 //
 // Live workflow ID: 0s5zRkxl2B0wbtbp
-// Live URL:         https://n8n.qinclaes.dev/workflow/0s5zRkxl2B0wbtbp
-// Public endpoint:  https://n8n.qinclaes.dev/webhook/benefits-partners
+// Live URL:         https://n8n.example.com/workflow/0s5zRkxl2B0wbtbp
+// Public endpoint:  https://n8n.example.com/webhook/benefits-partners
 // Authoritative copy for re-import: ./04-publish-webhook.json
 //
 // Purpose:
@@ -36,7 +36,7 @@
 //   - Data Table reads use env var N8N_API_KEY.
 //
 // Hardcoded values to update on re-import:
-//   - n8n instance host  "n8n.qinclaes.dev"  (in Data Table API URL)
+//   - n8n instance host  "n8n.example.com"  (in Data Table API URL)
 //   - Data Table ID      "AszlR72OLpvemUAf"  (in "Read partners table" node)
 //   - Webhook path       "benefits-partners" (matches lib/sync.js DEFAULT_SYNC_ENDPOINT)
 
@@ -70,7 +70,7 @@ const readPartners = node({
       language: 'javaScript',
       jsCode: `const TABLE_ID = 'AszlR72OLpvemUAf';
 const API_KEY = $env.N8N_API_KEY || '';
-const BASE = 'https://n8n.qinclaes.dev/api/v1/data-tables/' + TABLE_ID + '/rows';
+const BASE = 'https://n8n.example.com/api/v1/data-tables/' + TABLE_ID + '/rows';
 let allRows = [];
 let cursor = null;
 let safety = 0;

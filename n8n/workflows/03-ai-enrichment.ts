@@ -1,28 +1,29 @@
 // n8n workflow: AI domain enrichment.
 //
 // Live workflow ID: hZ8RXCqu0NkYblga
-// Live URL:         https://n8n.qinclaes.dev/workflow/hZ8RXCqu0NkYblga
+// Live URL:         https://n8n.example.com/workflow/hZ8RXCqu0NkYblga
 // Authoritative copy for re-import: ./03-ai-enrichment.json
 //
 // Purpose:
 //   - Either run manually, or be invoked at the end of the scraper workflow.
 //   - Read every row in the partners Data Table that has a real name (skip 'Unknown').
-//   - For each row, ask Claude Haiku (via the IBM ICA OpenAI-compatible
-//     gateway) to produce the FINAL list of consumer-facing domains, given
-//     the partner's name, category, and any domains the scraper already found.
+//   - For each row, ask Claude Haiku (via an OpenAI-compatible LLM gateway)
+//     to produce the FINAL list of consumer-facing domains, given the
+//     partner's name, category, and any domains the scraper already found.
 //   - The agent has explicit rules for affiliate-domain pruning, .com/.be/.nl/.fr
 //     national TLD expansion, regional-only Belgian businesses, and gift cards.
 //   - Output is parsed into {"domains":[...]} via a structured output parser.
 //   - The cleaned list is upserted back into domains_auto on the same row.
 //
 // Auth model:
-//   - The "Claude Haiku (ICA)" node uses an OpenAI-compatible credential
-//     (configured on the credential record itself: base URL = ICA gateway,
-//     API key = ICA token). Model name "claude-haiku-4-5" is set on the node.
+//   - The "Claude Haiku" node uses an OpenAI-compatible credential
+//     (configured on the credential record itself: base URL = your LLM
+//     gateway, API key = your provider's token). Model name "claude-haiku-4-5"
+//     is set on the node.
 //   - Data Table reads/writes use env var N8N_API_KEY in X-N8N-API-KEY.
 //
 // Hardcoded values to update on re-import:
-//   - n8n instance host  "n8n.qinclaes.dev"  (in Data Table API URLs)
+//   - n8n instance host  hardcoded in Data Table API URLs (search for n8n.example.com)
 //   - Data Table ID      "AszlR72OLpvemUAf"  (in fetch + upsert nodes)
 
 import { workflow, trigger, node } from '@n8n/workflow-sdk';
@@ -52,7 +53,7 @@ const fetchAllRows = node({
       language: 'javaScript',
       jsCode: `const TABLE_ID = 'AszlR72OLpvemUAf';
 const API_KEY = $env.N8N_API_KEY || '';
-const BASE = 'https://n8n.qinclaes.dev/api/v1/data-tables/' + TABLE_ID + '/rows';
+const BASE = 'https://n8n.example.com/api/v1/data-tables/' + TABLE_ID + '/rows';
 let allRows = [];
 let cursor = null;
 let safety = 0;
@@ -118,7 +119,7 @@ const llmNode = node({
   type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
   version: 1.3,
   config: {
-    name: 'Claude Haiku (ICA)',
+    name: 'Claude Haiku',
     position: [1140, 500],
     parameters: {
       // Wrapped in {{ … }} because the node's UI evaluates the model field as an expression.
@@ -126,7 +127,7 @@ const llmNode = node({
       temperature: 0,
       maxTokens: 200
     }
-    // credentials: openAiApi credential pointing at the IBM ICA gateway, configured at import time.
+    // credentials: openAiApi credential pointing at your OpenAI-compatible LLM gateway, configured at import time.
   }
 });
 
@@ -163,7 +164,7 @@ const cleaned = aiDomains.map(s => {
 const offer = $('Per-row AI enrichment').item.json;
 const TABLE_ID = 'AszlR72OLpvemUAf';
 const N8N_KEY = $env.N8N_API_KEY || '';
-const TBL = 'https://n8n.qinclaes.dev/api/v1/data-tables/' + TABLE_ID;
+const TBL = 'https://n8n.example.com/api/v1/data-tables/' + TABLE_ID;
 const now = new Date().toISOString();
 try {
   await this.helpers.request({

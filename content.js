@@ -31,7 +31,7 @@
   // web_accessible_resource in manifest.json.
   const LOGO_URL = chrome.runtime.getURL("assets/logo.png");
 
-  // Platform palette — sampled from ibmcic.benefitsatwork.be styles.css.
+  // Platform palette — matches the partner portal's CSS.
   //   #494e63 slate (header / nav)
   //   #29282d near-black (header gradient end)
   //   #dbb17f tan (primary CTA)
