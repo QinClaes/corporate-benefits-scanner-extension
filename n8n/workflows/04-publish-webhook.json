@@ -1,0 +1,77 @@
+{
+  "name": "Benefits@Work — Publish Webhook",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "benefits-partners",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bb2a0887-8c52-4fe2-a36b-08719f5164d5",
+      "name": "GET /benefits-partners",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [240, 300],
+      "webhookId": "6c0cc228-4aa7-4ebf-a611-3f0c6d713561"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const TABLE_ID = 'AszlR72OLpvemUAf';\nconst API_KEY = $env.N8N_API_KEY || '';\nconst BASE = 'https://n8n.qinclaes.dev/api/v1/data-tables/' + TABLE_ID + '/rows';\nlet allRows = [];\nlet cursor = null;\nlet safety = 0;\nwhile (safety < 50) {\n  const url = BASE + (cursor ? ('?cursor=' + encodeURIComponent(cursor)) : '');\n  const res = await this.helpers.request({\n    method: 'GET', uri: url,\n    headers: { 'X-N8N-API-KEY': API_KEY, 'Accept': 'application/json' },\n    json: true, simple: false, resolveWithFullResponse: false, timeout: 15000\n  });\n  const rows = (res && res.data) || [];\n  allRows = allRows.concat(rows);\n  cursor = (res && res.nextCursor) || null;\n  if (!cursor) break;\n  safety++;\n}\nreturn [{ json: { rows: allRows, count: allRows.length } }];"
+      },
+      "id": "a8805a25-e58a-440c-8a2a-6443b2af4c97",
+      "name": "Read partners table",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const rows = items[0].json.rows || [];\nconst partners = rows\n  .filter(r => r && r.status === 'active')\n  .map(r => {\n    let domains = [];\n    try {\n      const auto = r.domains_auto ? JSON.parse(r.domains_auto) : [];\n      domains = Array.isArray(auto) ? auto : [];\n    } catch { domains = []; }\n    return {\n      id: String(r.offer_id),\n      name: r.name || '',\n      offerPath: r.offer_path || '',\n      primaryCategory: r.primary_category || '',\n      logoUrl: r.logo_url || null,\n      domains\n    };\n  })\n  .filter(p => p.domains.length > 0)\n  .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));\nreturn [{ json: { version: 1, fetchedAt: new Date().toISOString(), partnerCount: partners.length, partners } }];"
+      },
+      "id": "36b73375-7e4f-47c7-a4b4-029481fb8634",
+      "name": "Build JSON response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Cache-Control", "value": "public, max-age=21600" },
+              { "name": "Content-Type", "value": "application/json; charset=utf-8" },
+              { "name": "Access-Control-Allow-Origin", "value": "*" }
+            ]
+          }
+        }
+      },
+      "id": "c156c59a-a3d4-4f4c-9822-7fa17db18e00",
+      "name": "Respond with partners JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1140, 300]
+    }
+  ],
+  "connections": {
+    "GET /benefits-partners": { "main": [[{ "node": "Read partners table", "type": "main", "index": 0 }]] },
+    "Read partners table": { "main": [[{ "node": "Build JSON response", "type": "main", "index": 0 }]] },
+    "Build JSON response": { "main": [[{ "node": "Respond with partners JSON", "type": "main", "index": 0 }]] }
+  },
+  "meta": {
+    "exportedFrom": "Live workflow ID 0s5zRkxl2B0wbtbp on https://n8n.qinclaes.dev",
+    "exportedAt": "2026-06-03",
+    "notes": "Public GET webhook; no auth. Production path: /webhook/benefits-partners. After import: set env var N8N_API_KEY and update the Data Table ID 'AszlR72OLpvemUAf' inside the 'Read partners table' Code node. Response shape is the contract consumed by lib/sync.js:fetchPartners — partners with empty domains arrays are filtered out before responding."
+  }
+}

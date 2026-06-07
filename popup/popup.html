@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Benefits@Work Notifier</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <img class="logo" src="../assets/logo.png" alt="corporate benefits" />
+      <div class="header-text">
+        <h1>Benefits@Work Notifier</h1>
+        <p class="subtitle">v0.2.1</p>
+      </div>
+    </header>
+
+    <section class="section">
+      <label for="subdomain-input" class="field-label">Platform subdomain</label>
+      <div class="field-row">
+        <input
+          id="subdomain-input"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="e.g. ibmcic"
+        />
+        <button id="save-button" type="button" class="primary">Save</button>
+      </div>
+      <p id="subdomain-help" class="help">
+        Resolves to <code id="subdomain-preview">https://&lt;subdomain&gt;.benefitsatwork.be</code>
+      </p>
+      <p id="subdomain-status" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Sync</h2>
+      <div class="sync-row">
+        <div class="sync-info">
+          <p class="sync-count" id="sync-count">— partners loaded</p>
+          <p class="sync-time" id="sync-time">Never synced</p>
+        </div>
+        <button id="sync-button" type="button" class="primary">Sync now</button>
+      </div>
+      <p id="sync-status" class="status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">Current tab</h2>
+      <div id="current-tab" class="current-tab">
+        <p class="current-empty">Checking…</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="section-title">All partners</h2>
+      <ul id="partner-list" class="partner-list"></ul>
+    </section>
+
+    <footer class="footer">
+      Live partners synced from your platform — refreshed every 24h.
+    </footer>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

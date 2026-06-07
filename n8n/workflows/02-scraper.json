@@ -1,0 +1,183 @@
+{
+  "name": "Benefits@Work — Scraper (weekly)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "aa07d0a3-8e5f-41c2-8ba0-869098c30258",
+      "name": "Manual Run",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 208]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [0],
+              "triggerAtHour": 4,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "7ae53b40-f892-494c-a332-a8efb906b6b8",
+      "name": "Weekly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ibmcic.benefitsatwork.be/login",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "User-Agent", "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36" },
+            { "name": "Accept", "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" },
+            { "name": "Accept-Language", "value": "nl,en;q=0.9" },
+            { "name": "Origin", "value": "https://ibmcic.benefitsatwork.be" },
+            { "name": "Referer", "value": "https://ibmcic.benefitsatwork.be/login" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "loginData[email]", "value": "={{ $env.BENEFITS_EMAIL }}" },
+            { "name": "loginData[password]", "value": "={{ $env.BENEFITS_PASSWORD }}" },
+            { "name": "cbg3-submit", "value": "Inloggen" }
+          ]
+        },
+        "options": {
+          "redirect": { "redirect": { "followRedirects": false } },
+          "response": { "response": { "fullResponse": true, "neverError": true, "responseFormat": "text" } },
+          "timeout": 30000
+        }
+      },
+      "id": "6c3f2871-20dd-4f50-9742-fbd67e6b8b3a",
+      "name": "POST /login",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [544, 304]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = items[0].json;\nconst headers = item.headers || {};\nconst raw = headers['set-cookie'] || headers['Set-Cookie'] || [];\nconst arr = Array.isArray(raw) ? raw : [raw];\nlet cbg3fe = null;\nfor (const line of arr) {\n  const m = /(?:^|;\\s*)CBG3FE=([^;]+)/.exec(String(line));\n  if (m) { cbg3fe = m[1]; break; }\n}\nconst status = item.statusCode;\nconst location = (headers.location || headers.Location || '').trim();\nconst success = status === 302 && (location === '/' || location.startsWith('/?'));\nif (!success || !cbg3fe) {\n  const body = String(item.body || '').slice(0, 600);\n  const errMatch = /class=\"[^\"]*cbg3-form--error[^\"]*\"[^>]*>([^<]+)/.exec(body);\n  throw new Error('Login failed. status=' + status + ' location=' + location + ' error=' + (errMatch ? errMatch[1].trim() : 'none') + ' bodySnippet=' + body.replace(/<[^>]+>/g,' ').replace(/\\s+/g,' ').trim().slice(0,200));\n}\nconst CATEGORIES = [\n  { id: 23, name: 'Travel' }, { id: 36, name: 'Leisure' }, { id: 35, name: 'Fashion' },\n  { id: 1740, name: 'Sports' }, { id: 2814, name: 'Vouchers' }, { id: 42, name: 'Tickets' },\n  { id: 37, name: 'Home' }, { id: 4428, name: 'Food' }, { id: 38, name: 'Electronics' },\n  { id: 2795, name: 'Mobility' }, { id: 41, name: 'Regional' }\n];\nreturn CATEGORIES.map(cat => ({ json: { cbg3fe, catId: cat.id, catName: cat.name } }));"
+      },
+      "id": "1627f02a-badb-4815-977b-4d4165301112",
+      "name": "Extract session cookie",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [848, 304]
+    },
+    {
+      "parameters": {
+        "jsCode": "const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';\nconst results = [];\nfor (const it of items) {\n  const { cbg3fe, catId, catName } = it.json;\n  try {\n    const res = await this.helpers.request({\n      method: 'GET',\n      uri: 'https://ibmcic.benefitsatwork.be/overview/' + catId,\n      headers: {\n        'User-Agent': UA,\n        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',\n        'Accept-Language': 'nl,en;q=0.9',\n        'Cookie': 'CBG3FE=' + cbg3fe\n      },\n      resolveWithFullResponse: true,\n      followRedirect: false,\n      simple: false,\n      timeout: 60000\n    });\n    const html = String(res.body || '');\n    results.push({ json: { cbg3fe, catId, catName, html, htmlLength: html.length, status: res.statusCode } });\n  } catch (err) {\n    results.push({ json: { cbg3fe, catId, catName, html: '', htmlLength: 0, error: String(err.message).slice(0, 300) } });\n  }\n}\nreturn results;"
+      },
+      "id": "3a63fc7d-2b32-4dea-ac26-7be5120c181e",
+      "name": "GET /overview/:catId",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1152, 304]
+    },
+    {
+      "parameters": {
+        "jsCode": "const allOffers = [];\nconst seen = new Set();\nfunction decode(s){return s.replace(/&#x([0-9a-fA-F]+);/g,(_,h)=>String.fromCharCode(parseInt(h,16))).replace(/&amp;/g,'&').replace(/&quot;/g,'\"').replace(/&#39;/g,\"'\");}\nfor (const it of items) {\n  const html = String(it.json.html || '');\n  const catName = it.json.catName || 'Unknown';\n  const cbg3fe = it.json.cbg3fe;\n  if (!html) continue;\n  const mi = html.indexOf('id=\"main-content\"');\n  const main = mi >= 0 ? html.slice(mi) : html;\n\n  // Pass 1: cbg3-list-item cards\n  for (const m of main.matchAll(/class=\"cbg3-list-item\"\\s+data-id=\"(\\d+)\"/g)) {\n    const oid = m[1];\n    if (seen.has(oid)) continue;\n    const region = main.slice(m.index, m.index + 2000);\n    const hrefM = region.match(new RegExp('href=\"(/offer/' + oid + '/cat/(\\\\d+))\"'));\n    if (!hrefM) continue;\n    let name = null;\n    const altM = region.match(/alt=\"To(?:&#x20;| )the(?:&#x20;| )offer(?:&#x20;| )([^\"]+?)\"/);\n    if (altM) name = altM[1];\n    if (!name) {\n      const h3M = region.match(/<h3[^>]*>([^<]+)/);\n      if (h3M) name = h3M[1].trim();\n    }\n    if (name) name = decode(name).replace(/&#x20;/g,' ').replace(/\\s+/g,' ').trim();\n    const logoM = region.match(/data-original=\"(https:\\/\\/cdn\\.mitarbeiterangebote\\.de[^\"]+)\"/);\n    seen.add(oid);\n    allOffers.push({ offerId: parseInt(oid), offerPath: hrefM[1], catId: parseInt(hrefM[2]),\n      name: name || 'Unknown', primaryCategory: catName, logoUrl: logoM ? logoM[1] : null, cbg3fe });\n  }\n\n  // Pass 2: a-banner cards via data-wt-teaser-tracking\n  for (const m of main.matchAll(/data-wt-teaser-tracking='[^']*\"521\"\\s*:\\s*\"([^\"]+?)\\s*-AN(\\d+)\"/g)) {\n    const name = m[1].trim();\n    const oid = m[2];\n    if (seen.has(oid)) continue;\n    const region = main.slice(m.index, m.index + 3000);\n    const hrefM = region.match(new RegExp('href=\"(/offer/' + oid + '/cat/(\\\\d+))\"'));\n    if (!hrefM) continue;\n    seen.add(oid);\n    allOffers.push({ offerId: parseInt(oid), offerPath: hrefM[1], catId: parseInt(hrefM[2]),\n      name: decode(name) || 'Unknown', primaryCategory: catName, logoUrl: null, cbg3fe });\n  }\n\n  // Pass 3: any remaining /offer/<id>/cat/<catId> links\n  for (const m of main.matchAll(/href=\"(\\/offer\\/(\\d+)\\/cat\\/(\\d+))\"/g)) {\n    const oid = m[2];\n    if (seen.has(oid)) continue;\n    const region = main.slice(Math.max(0, m.index - 1500), m.index + 800);\n    let name = null;\n    const altM = region.match(/alt=\"To(?:&#x20;| )the(?:&#x20;| )offer(?:&#x20;| )([^\"]+?)\"/);\n    if (altM) name = altM[1];\n    if (!name) {\n      const h3M = region.match(/<h3[^>]*>([^<]+)/);\n      if (h3M) name = h3M[1].trim();\n    }\n    if (name) name = decode(name).replace(/&#x20;/g,' ').replace(/\\s+/g,' ').trim();\n    seen.add(oid);\n    allOffers.push({ offerId: parseInt(oid), offerPath: m[1], catId: parseInt(m[3]),\n      name: name || 'Unknown', primaryCategory: catName, logoUrl: null, cbg3fe });\n  }\n}\nconsole.log('Parsed ' + allOffers.length + ' unique offers from ' + items.length + ' category pages');\nreturn allOffers.map(o => ({ json: o }));"
+      },
+      "id": "33b565b1-1e69-4ac2-b3af-70c00d851ed2",
+      "name": "Parse offer cards",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 304]
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst unique = [];\nfor (const it of items) {\n  const oid = it.json.offerId;\n  if (!seen.has(oid)) { seen.add(oid); unique.push(it); }\n}\nconsole.log('Deduplicated: ' + items.length + ' -> ' + unique.length + ' unique offers');\nreturn unique;"
+      },
+      "id": "d7de11c4-19eb-4b1e-984f-e8ee2de9a20c",
+      "name": "Deduplicate offers",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1744, 304]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "079e2d2c-6873-488b-b60a-f92a6458c4c5",
+      "name": "Process each offer",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [2048, 304]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const offer = items[0].json;\nconst UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';\nconst TABLE_ID = 'AszlR72OLpvemUAf';\nconst N8N_KEY = $env.N8N_API_KEY || '';\nconst TBL = 'https://n8n.qinclaes.dev/api/v1/data-tables/' + TABLE_ID;\n\nconst EXCLUDE = new Set(['ibmcic.benefitsatwork.be','benefitsatwork.be','play.google.com','itunes.apple.com','apps.apple.com','cdn.mitarbeiterangebote.de','text.mitarbeiterangebote.de','vouchers-at-work.com','wt-safetag.com','wbtrk.net','newrelic.com','nr-data.net','jsctool.com','here.com','facebook.com','twitter.com','instagram.com','linkedin.com','youtube.com','tiktok.com']);\nconst EXCL_PFX = ['support.','help.','status.','cdn.','static.','api.','img.','images.'];\nfunction reg(h){h=(h||'').toLowerCase().split(':')[0];if(h.startsWith('www.'))h=h.slice(4);return h;}\nfunction excl(h){h=(h||'').toLowerCase();return[...EXCLUDE].some(e=>h===e||h.endsWith('.'+e))||EXCL_PFX.some(p=>h.startsWith(p));}\n// Manual hostname extraction (URL constructor unavailable in n8n sandbox)\nfunction hostOf(rawUrl) {\n  const m = /^https?:\\/\\/([^\\/?#:]+)/i.exec(rawUrl);\n  return m ? m[1] : '';\n}\n\nlet domains = [];\nlet htmlLen = 0;\nlet fetchStatus = 0;\nlet fetchErr = '';\ntry {\n  const res = await this.helpers.request({\n    method: 'GET', uri: 'https://ibmcic.benefitsatwork.be' + offer.offerPath,\n    headers: { 'User-Agent': UA, 'Accept': 'text/html', 'Accept-Language': 'nl,en;q=0.9', 'Cookie': 'CBG3FE=' + offer.cbg3fe },\n    resolveWithFullResponse: true, followRedirect: false, simple: false, timeout: 30000\n  });\n  fetchStatus = res.statusCode;\n  const html = String(res.body || '');\n  htmlLen = html.length;\n  const seen = new Set();\n  function add(raw) {\n    const decoded = raw.replace(/&#x([0-9a-fA-F]+);/g,(_,h)=>String.fromCharCode(parseInt(h,16))).replace(/&amp;/g,'&');\n    const host = hostOf(decoded);\n    if (!host || excl(host)) return;\n    const rd = reg(host);\n    if (rd && !seen.has(rd)) { seen.add(rd); domains.push(rd); }\n  }\n  const dre = /data-href=\"(https?:\\/\\/[^\"]+)\"/g;\n  let m;\n  while ((m = dre.exec(html)) !== null) add(m[1]);\n  const mi = html.indexOf('id=\"main-content\"');\n  const body = mi >= 0 ? html.slice(mi) : html;\n  const bc = body.replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi,'').replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi,'');\n  const are = /href=\"(https?:\\/\\/[^\"]+)\"/g;\n  while ((m = are.exec(bc)) !== null) add(m[1]);\n} catch (err) { fetchErr = String(err.message || err).slice(0, 200); }\n\n// Upsert\nconst now = new Date().toISOString();\nlet upsertErr = '';\ntry {\n  await this.helpers.request({\n    method: 'POST', uri: TBL + '/rows/upsert',\n    headers: { 'X-N8N-API-KEY': N8N_KEY, 'Content-Type': 'application/json' },\n    body: {\n      filter: { filters: [{ columnName: 'offer_id', value: offer.offerId, condition: 'eq' }] },\n      data: { offer_id: offer.offerId, name: offer.name || '', offer_path: offer.offerPath, cat_id: offer.catId, primary_category: offer.primaryCategory, logo_url: offer.logoUrl || '', domains_auto: JSON.stringify(domains), status: 'active', last_seen_at: now, domain_resolved_at: now }\n    },\n    json: true, simple: false, timeout: 15000\n  });\n} catch (err) { upsertErr = String(err.message || err).slice(0, 200); }\n\nreturn [{ json: { offerId: offer.offerId, name: offer.name, fetchStatus, htmlLen, domains, fetchErr, upsertErr } }];"
+      },
+      "id": "4bc1f801-bcc1-40a9-b6bd-7919ad7640ad",
+      "name": "Process offer (fetch + extract + upsert)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2352, 304]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inserted = items.filter(i => i.json.action === 'inserted').length;\nconst updated = items.filter(i => i.json.action === 'updated').length;\nconst withDomains = items.filter(i => i.json.domains && i.json.domains.length > 0).length;\nconsole.log('Scrape complete: ' + items.length + ' | inserted=' + inserted + ' updated=' + updated + ' with_domains=' + withDomains);\nreturn [{ json: { total: items.length, inserted, updated, withDomains, runDate: new Date().toISOString() } }];"
+      },
+      "id": "0be5a61e-ef89-4032-8c74-6354d1a09d0b",
+      "name": "Log summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [4144, 304]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "value": "hZ8RXCqu0NkYblga",
+          "mode": "list",
+          "cachedResultName": "Benefits@Work — AI domain enrichment"
+        },
+        "mode": "each",
+        "options": {}
+      },
+      "id": "exec-ai",
+      "name": "Trigger AI enrichment",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [4444, 304]
+    }
+  ],
+  "connections": {
+    "Manual Run": { "main": [[{ "node": "POST /login", "type": "main", "index": 0 }]] },
+    "Weekly Schedule": { "main": [[{ "node": "POST /login", "type": "main", "index": 0 }]] },
+    "POST /login": { "main": [[{ "node": "Extract session cookie", "type": "main", "index": 0 }]] },
+    "Extract session cookie": { "main": [[{ "node": "GET /overview/:catId", "type": "main", "index": 0 }]] },
+    "GET /overview/:catId": { "main": [[{ "node": "Parse offer cards", "type": "main", "index": 0 }]] },
+    "Parse offer cards": { "main": [[{ "node": "Deduplicate offers", "type": "main", "index": 0 }]] },
+    "Deduplicate offers": { "main": [[{ "node": "Process each offer", "type": "main", "index": 0 }]] },
+    "Process each offer": {
+      "main": [
+        [{ "node": "Log summary", "type": "main", "index": 0 }],
+        [{ "node": "Process offer (fetch + extract + upsert)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Process offer (fetch + extract + upsert)": { "main": [[{ "node": "Process each offer", "type": "main", "index": 0 }]] },
+    "Log summary": { "main": [[{ "node": "Trigger AI enrichment", "type": "main", "index": 0 }]] }
+  },
+  "meta": {
+    "exportedFrom": "Live workflow ID NFJp7ok1KAJiATza on https://n8n.qinclaes.dev",
+    "exportedAt": "2026-06-03",
+    "notes": "Re-import via n8n UI: Workflows -> Import from File. After import, set the executeWorkflow target (Trigger AI enrichment node) to your local AI-enrichment workflow ID, and set env vars BENEFITS_EMAIL, BENEFITS_PASSWORD, N8N_API_KEY. The Data Table ID 'AszlR72OLpvemUAf' is hardcoded in the upsert node and must be updated to your local partners-table ID."
+  }
+}

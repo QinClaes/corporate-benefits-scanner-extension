@@ -1,0 +1,127 @@
+{
+  "name": "Benefits@Work — AI domain enrichment",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "fbedbbc7-621f-46f8-af3b-454fb9eea734",
+      "name": "Run AI enrichment",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {},
+      "id": "execwf-trigger",
+      "name": "Called from another workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [240, 480]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const TABLE_ID = 'AszlR72OLpvemUAf';\nconst API_KEY = $env.N8N_API_KEY || '';\nconst BASE = 'https://n8n.qinclaes.dev/api/v1/data-tables/' + TABLE_ID + '/rows';\nlet allRows = [];\nlet cursor = null;\nlet safety = 0;\nwhile (safety < 50) {\n  const url = BASE + (cursor ? ('?cursor=' + encodeURIComponent(cursor)) : '');\n  const res = await this.helpers.request({\n    method: 'GET', uri: url,\n    headers: { 'X-N8N-API-KEY': API_KEY, 'Accept': 'application/json' },\n    json: true, simple: false, resolveWithFullResponse: false, timeout: 15000\n  });\n  const rows = (res && res.data) || [];\n  allRows = allRows.concat(rows);\n  cursor = (res && res.nextCursor) || null;\n  if (!cursor) break;\n  safety++;\n}\n// Process every row that has a real name (skip 'Unknown' since AI can't help without a name)\nconst candidates = allRows.filter(r => r && r.name && r.name !== 'Unknown');\nconsole.log('Total rows: ' + allRows.length + ', candidates: ' + candidates.length);\nreturn candidates.map(r => ({ json: r }));"
+      },
+      "id": "5d051158-51c1-4e6b-9f16-3114c44f849d",
+      "name": "Fetch all rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1
+      },
+      "id": "9e982665-598f-45b9-ac14-1a7ae52881c2",
+      "name": "Per-row AI enrichment",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [840, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "hasOutputParser": true,
+        "systemMessage": "You are a domain-resolution assistant for a Chrome extension that detects when users visit partner sites of a Belgian employee-benefits platform. Given a partner's name, category, and the list of domains currently on file (may be empty), produce the FINAL list of consumer-facing domains where Belgian users would actually shop for this brand.\n\nRules:\n(1) Keep current domains that genuinely belong to this brand. Drop affiliate/tracking domains (e.g. go.nordvpn.net, simplebooking.it, wbiprod.storedvalue.com).\n(2) Add national TLD variants (.com, .be, .nl, .fr) where the brand has them and Belgian users would plausibly browse them.\n(3) For Belgian regional/local-only businesses (gyms, restaurants, single-shop boutiques) with no international presence, keep only the extracted domain (or empty if none).\n(4) For known international brands, always include .com if it exists.\n(5) For gift card offers, use the parent brand's main consumer domain.\n(6) If you genuinely cannot identify the brand and the input domains list is empty, return [].\n(7) Output ONLY the JSON object {\"domains\": [...]} with bare registrable domains: no protocol, no www., no path, lowercase. Maximum 5 domains.",
+        "text": "=Partner name: {{ $json.name }}\nCategory: {{ $json.primary_category }}\nCurrently stored domains: {{ $json.domains_auto || '[]' }}\n\nReturn the final domain list as JSON: {\"domains\":[...]}."
+      },
+      "id": "39611e35-caac-4ba3-a005-d2e3b61aeb2a",
+      "name": "AI domain agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "model": "={{ \"claude-haiku-4-5\" }}",
+        "temperature": 0,
+        "maxTokens": 200
+      },
+      "id": "e31ad8c9-d247-43d2-acc5-e80fbfb7c74b",
+      "name": "Claude Haiku (ICA)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [1140, 500]
+    },
+    {
+      "parameters": {
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{ \"domains\": [\"rcn.nl\", \"rcn.be\"] }"
+      },
+      "id": "580fc984-09a7-4947-83dd-e70fae7ddd89",
+      "name": "Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1340, 500]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ai = items[0].json;\nconst aiDomains = Array.isArray(ai.domains) ? ai.domains : (Array.isArray(ai.output?.domains) ? ai.output.domains : []);\nconst cleaned = aiDomains.map(s => {\n  let d = String(s||'').trim().toLowerCase();\n  d = d.replace(/^https?:\\/\\//, '').replace(/^www\\./, '').split('/')[0].split(':')[0];\n  return d;\n}).filter(d => /^[a-z0-9][a-z0-9.-]*\\.[a-z]{2,}$/.test(d)).slice(0, 5);\n\nconst offer = $('Per-row AI enrichment').item.json;\nconst TABLE_ID = 'AszlR72OLpvemUAf';\nconst N8N_KEY = $env.N8N_API_KEY || '';\nconst TBL = 'https://n8n.qinclaes.dev/api/v1/data-tables/' + TABLE_ID;\nconst now = new Date().toISOString();\ntry {\n  await this.helpers.request({\n    method: 'POST', uri: TBL + '/rows/upsert',\n    headers: { 'X-N8N-API-KEY': N8N_KEY, 'Content-Type': 'application/json' },\n    body: {\n      filter: { filters: [{ columnName: 'offer_id', value: offer.offer_id, condition: 'eq' }] },\n      data: { domains_auto: JSON.stringify(cleaned), domain_resolved_at: now }\n    },\n    json: true, simple: false, timeout: 15000\n  });\n} catch (err) {\n  return [{ json: { offer_id: offer.offer_id, name: offer.name, error: String(err.message||err).slice(0,200), aiDomains, cleaned } }];\n}\nreturn [{ json: { offer_id: offer.offer_id, name: offer.name, action: 'enriched', domains: cleaned } }];"
+      },
+      "id": "3db5a89f-c301-4e7a-9253-fa6e24bafdea",
+      "name": "Upsert AI domains",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1640, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const enriched = items.filter(i => i.json.action === 'enriched').length;\nconst withDomains = items.filter(i => Array.isArray(i.json.domains) && i.json.domains.length > 0).length;\nconst errors = items.filter(i => i.json.error).length;\nconsole.log('Enrichment done: total=' + items.length + ' enriched=' + enriched + ' withDomains=' + withDomains + ' errors=' + errors);\nreturn [{ json: { total: items.length, enriched, withDomains, errors, runDate: new Date().toISOString() } }];"
+      },
+      "id": "4ac44bd3-2781-4b0c-9dc9-545a18a7a832",
+      "name": "Log enrichment summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1940, 300]
+    }
+  ],
+  "connections": {
+    "Run AI enrichment": { "main": [[{ "node": "Fetch all rows", "type": "main", "index": 0 }]] },
+    "Called from another workflow": { "main": [[{ "node": "Fetch all rows", "type": "main", "index": 0 }]] },
+    "Fetch all rows": { "main": [[{ "node": "Per-row AI enrichment", "type": "main", "index": 0 }]] },
+    "Per-row AI enrichment": {
+      "main": [
+        [{ "node": "Log enrichment summary", "type": "main", "index": 0 }],
+        [{ "node": "AI domain agent", "type": "main", "index": 0 }]
+      ]
+    },
+    "AI domain agent": { "main": [[{ "node": "Upsert AI domains", "type": "main", "index": 0 }]] },
+    "Claude Haiku (ICA)": { "ai_languageModel": [[{ "node": "AI domain agent", "type": "ai_languageModel", "index": 0 }]] },
+    "Parser": { "ai_outputParser": [[{ "node": "AI domain agent", "type": "ai_outputParser", "index": 0 }]] },
+    "Upsert AI domains": { "main": [[{ "node": "Per-row AI enrichment", "type": "main", "index": 0 }]] }
+  },
+  "meta": {
+    "exportedFrom": "Live workflow ID hZ8RXCqu0NkYblga on https://n8n.qinclaes.dev",
+    "exportedAt": "2026-06-03",
+    "notes": "Re-import via n8n UI: Workflows -> Import from File. After import: (1) attach an OpenAI-compatible credential to the 'Claude Haiku (ICA)' node — base URL points at the IBM ICA gateway, model 'claude-haiku-4-5'. (2) Set env var N8N_API_KEY. (3) Update the Data Table ID 'AszlR72OLpvemUAf' to your local partners-table ID inside the Code nodes 'Fetch all rows' and 'Upsert AI domains'."
+  }
+}

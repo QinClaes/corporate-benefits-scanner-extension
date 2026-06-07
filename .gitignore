@@ -1,0 +1,19 @@
+# macOS metadata
+.DS_Store
+
+# Editor / OS
+*.swp
+.idea/
+.vscode/
+
+# Local dependencies (the repo itself doesn't use npm at the root, but
+# n8n/research/parse.mjs uses jsdom; keep this just in case).
+node_modules/
+
+# Local-only n8n exports that may include credential data. The committed
+# workflow exports under n8n/workflows/ are stripped of credentials and are
+# safe to track; this directory is reserved for "raw export with creds" dumps.
+n8n/local/
+
+# n8n/research/ is self-gitignored via n8n/research/.gitignore (it contains
+# HTML dumps from a logged-in scrape session). Don't override that here.

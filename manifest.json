@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Benefits@Work Notifier",
+  "version": "0.2.1",
+  "description": "Alerts you when you visit a partner site of your Benefits@Work platform and links you to the matching offer.",
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Benefits@Work Notifier",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "permissions": [
+    "tabs",
+    "storage",
+    "scripting",
+    "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://n8n.qinclaes.dev/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/logo.png", "assets/icons/icon-128.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
