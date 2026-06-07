@@ -41,48 +41,72 @@ small bundled seed list (`data/offers.js`) so it still works.
 - Manual "Sync now" button + automatic 24 h refresh via `chrome.alarms`.
 - Pure vanilla MV3 — no build step, no dependencies.
 
-## Install (development)
+## Install
 
-### Chrome / Chromium
+Pre-built downloads are on the
+[latest release](https://github.com/QinClaes/corporate-benefits-scanner-extension/releases/latest).
+The artifacts are produced automatically by GitHub Actions on every version
+tag — see [`RELEASING.md`](RELEASING.md) for the release flow.
 
-1. Open `chrome://extensions`.
-2. Enable **Developer mode** (top-right toggle).
-3. Click **Load unpacked**.
-4. Select this folder (`benefits-notifier/`).
-5. Pin the extension icon to the toolbar so the badge is visible.
+### Chrome / Chromium / Brave / Edge / Vivaldi
 
-### Firefox (121+)
+1. Download
+   [`benefits-notifier-chrome.zip`](https://github.com/QinClaes/corporate-benefits-scanner-extension/releases/latest/download/benefits-notifier-chrome.zip)
+   from the latest release.
+2. Unzip it (double-click on macOS, right-click → **Extract All** on Windows).
+3. Open `chrome://extensions` (paste the URL into the address bar).
+4. Toggle **Developer mode** on (top-right corner).
+5. Click **Load unpacked** and pick the unzipped folder.
+6. Pin the extension icon to the toolbar so the badge is visible.
 
-Firefox uses the same source files but reads `manifest.firefox.json` instead of
-`manifest.json`. The Firefox manifest replaces the Chrome `service_worker`
-background entry with a non-persistent event-page `scripts` entry (still
-`"type": "module"`, so the ESM imports in `service-worker.js` keep working) and
-adds the required `browser_specific_settings.gecko.id`.
+The install is permanent — it survives Chrome restarts. Chrome shows a
+"Disable developer mode extensions" banner on each startup; that's cosmetic
+and the extension keeps working. Don't delete or move the unzipped folder
+after install: Chrome stores a path reference to it.
 
-Two ways to load it:
+### Firefox
 
-- **Quick (temporary add-on)**:
-  1. Make a working copy of this folder somewhere outside the repo (or use a
-     scratch directory) and rename `manifest.firefox.json` → `manifest.json`
-     in that copy. Firefox always loads the file literally named `manifest.json`.
-  2. Open `about:debugging#/runtime/this-firefox`.
-  3. Click **Load Temporary Add-on…**.
-  4. Pick the renamed `manifest.json` (or any file inside the copied folder).
-  5. Pin the toolbar button so the badge is visible.
+**Direct install only works on Firefox forks that allow unsigned extensions:
+[LibreWolf](https://librewolf.net/),
+[Firefox Developer Edition](https://www.mozilla.org/firefox/developer/),
+[Firefox Nightly](https://www.mozilla.org/firefox/channel/desktop/#nightly),
+or [Waterfox](https://www.waterfox.net/).** Stock Firefox is not supported
+because Mozilla requires every extension on Firefox stable to be signed by
+them, and this extension isn't published on AMO.
 
-  The add-on is unloaded when Firefox quits.
+1. Download
+   [`benefits-notifier-firefox.xpi`](https://github.com/QinClaes/corporate-benefits-scanner-extension/releases/latest/download/benefits-notifier-firefox.xpi)
+   from the latest release.
+2. Drag-and-drop the `.xpi` file onto a browser window.
+3. Click **Add** in the install prompt.
+4. Pin the toolbar button so the badge is visible.
 
-- **`web-ext run`** (optional, requires `npm i -g web-ext`): same rename trick,
-  then `web-ext run --source-dir .` from inside the copy. Auto-reload on file
-  change.
-
-Don't commit the renamed file — the canonical Chrome `manifest.json` lives at
-the repo root.
+If install is blocked, open `about:config` and verify that
+`xpinstall.signatures.required` is `false` (default-false on LibreWolf and
+Waterfox; needs to be flipped manually on Firefox Dev / Nightly).
 
 Note: Firefox treats `<all_urls>` as an *optional* host permission. On first
 install the toolbar button shows a "permission required" prompt and you have
 to grant access per-site or via "Always Allow on All Sites". This is a Firefox
 policy difference, not an extension bug.
+
+## Build from source (developers)
+
+There is no build step. To run from a clone of this repo:
+
+- **Chrome / Chromium**: clone the repo, then in `chrome://extensions` →
+  Developer mode → **Load unpacked** → pick the repo folder. Skip the zip
+  entirely.
+- **Firefox forks**: copy the repo to a scratch directory, rename
+  `manifest.firefox.json` → `manifest.json` in the copy, then
+  `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → pick
+  any file in the copy. Note that Firefox temporary add-ons are unloaded when
+  the browser quits — for a persistent install, use the `.xpi` from a release.
+  Don't commit the renamed file: the canonical Chrome `manifest.json` lives at
+  the repo root.
+
+To cut a release (produces both artifacts via GitHub Actions), see
+[`RELEASING.md`](RELEASING.md).
 
 ## First-run setup
 
@@ -149,10 +173,13 @@ benefits-notifier/
 │   ├── popup.css
 │   └── popup.js               subdomain + sync UI + partner list
 ├── n8n/                       n8n workflow exports (.json + .ts) and research HTML
+├── .github/workflows/release.yml  CI: tag push → build .zip + .xpi → GitHub Release
+├── RELEASING.md               release flow (tagging + what the workflow does)
 └── README.md                  this file
 ```
 
 For an orientation aimed at AI assistants and new contributors, see [`AGENTS.md`](AGENTS.md).
+For the release flow, see [`RELEASING.md`](RELEASING.md).
 For the n8n side (setup, env vars, Data Table schema, re-import order), see [`n8n/README.md`](n8n/README.md).
 
 ## n8n backend

@@ -17,3 +17,8 @@ n8n/local/
 
 # n8n/research/ is self-gitignored via n8n/research/.gitignore (it contains
 # HTML dumps from a logged-in scrape session). Don't override that here.
+
+# Local builds. Real release artifacts come from .github/workflows/release.yml
+# and are uploaded to GitHub Releases — they should never live in the repo.
+*.zip
+*.xpi

@@ -44,6 +44,10 @@ benefits-notifier/
 │   │   └── 04-publish-webhook.json + .ts    PRODUCTION: public GET /webhook/benefits-partners.
 │   └── research/              Self-gitignored. Local HTML dumps + offline parser harness.
 ├── README.md                  User-facing project docs.
+├── RELEASING.md               Maintainer checklist for cutting a tagged release.
+├── .github/
+│   └── workflows/
+│       └── release.yml        Tag push (`v*.*.*`) → build .zip + .xpi → GitHub Release.
 └── AGENTS.md                  This file.
 ```
 
@@ -61,6 +65,7 @@ A `chrome.alarms.create("refresh-partners", { periodInMinutes: REFRESH_PERIOD_MI
 
 - **The extension** — vanilla MV3, no build. Edit and reload via `chrome://extensions` → "Reload" on the Benefits@Work Notifier card. No npm install at the root.
 - **The n8n backend** — see `n8n/README.md`. Workflows are versioned as both JSON (importable) and `.ts` (readable archive).
+- **Releases** — push a `v*.*.*` tag to GitHub and `.github/workflows/release.yml` builds `benefits-notifier-chrome.zip` and `benefits-notifier-firefox.xpi` and attaches them to a GitHub Release. No build step is involved; the workflow only zips files and renames `manifest.firefox.json` → `manifest.json` for the Firefox artifact. See `RELEASING.md` for the maintainer checklist.
 
 ## Don't break these contracts
 
@@ -79,6 +84,8 @@ A `chrome.alarms.create("refresh-partners", { periodInMinutes: REFRESH_PERIOD_MI
 ## No-build promise
 
 This repo runs as-is in Chrome and Firefox 121+. There is no transpiler, no bundler, no `npm install` at the root. The only tooling is `n8n/research/parse.mjs`, which uses jsdom and is run ad-hoc for offline parser testing — it's not part of any pipeline.
+
+The release workflow in `.github/workflows/release.yml` does not break this promise: it only zips the existing source files and renames `manifest.firefox.json` → `manifest.json` for the Firefox artifact. No transpilation or bundling.
 
 For Firefox, copy the repo to a scratch directory, rename `manifest.firefox.json` → `manifest.json`, then point `about:debugging` → "Load Temporary Add-on…" at it. The shared source files (`service-worker.js`, `content.js`, `lib/*`, `popup/*`, `data/*`, `assets/*`) are unchanged between targets.
 
@@ -114,6 +121,8 @@ Never commit:
 - **Regenerate research dumps** — see `n8n/research/NOTES.md`. Requires a fresh `CBG3FE` cookie from a logged-in browser session. Output is gitignored.
 
 - **Edit / re-import an n8n workflow** — see `n8n/README.md`. JSON files are importable directly via the n8n UI ("Workflows → Import from File"). `.ts` files are readable archives only.
+
+- **Cut a release** — see `RELEASING.md`. Three steps: bump `version` in **both** `manifest.json` and `manifest.firefox.json` (must match), commit on `main`, then `git tag v0.2.2 && git push origin main --tags`. The `.github/workflows/release.yml` workflow validates version parity and uploads `benefits-notifier-chrome.zip` + `benefits-notifier-firefox.xpi` to a GitHub Release.
 
 ## Known issues / drift
 

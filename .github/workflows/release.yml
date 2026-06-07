@@ -1,0 +1,87 @@
+name: Release
+
+# Triggered by pushing a version tag like `v0.2.2`. The workflow validates
+# version parity (git tag <-> manifest.json <-> manifest.firefox.json), then
+# zips the source into a Chrome `.zip` and a Firefox `.xpi` and attaches both
+# to a GitHub Release. No build step: only file copying, renaming, and zip.
+#
+# To cut a release, see RELEASING.md.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate version parity (tag vs both manifests)
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          chrome_version="$(jq -r .version manifest.json)"
+          firefox_version="$(jq -r .version manifest.firefox.json)"
+          echo "git tag       : v${tag}"
+          echo "manifest.json : ${chrome_version}"
+          echo "manifest.fx   : ${firefox_version}"
+          if [ "${tag}" != "${chrome_version}" ] || [ "${tag}" != "${firefox_version}" ]; then
+            echo "::error::Version mismatch. Bump manifest.json and manifest.firefox.json to match the tag, then re-tag."
+            exit 1
+          fi
+
+      - name: Build Chrome .zip
+        run: |
+          set -euo pipefail
+          zip -r benefits-notifier-chrome.zip . \
+            -x '.git/*' \
+               '.github/*' \
+               '.gitignore' \
+               '.gitattributes' \
+               'AGENTS.md' \
+               'README.md' \
+               'RELEASING.md' \
+               'manifest.firefox.json' \
+               'n8n/*' \
+               '.DS_Store' \
+               '*/.DS_Store' \
+               '*.zip' \
+               '*.xpi'
+          ls -lh benefits-notifier-chrome.zip
+
+      - name: Build Firefox .xpi
+        run: |
+          set -euo pipefail
+          stage="$(mktemp -d)"
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.gitignore' \
+            --exclude='.gitattributes' \
+            --exclude='AGENTS.md' \
+            --exclude='README.md' \
+            --exclude='RELEASING.md' \
+            --exclude='manifest.json' \
+            --exclude='n8n' \
+            --exclude='.DS_Store' \
+            --exclude='*.zip' \
+            --exclude='*.xpi' \
+            ./ "$stage"/
+          mv "$stage/manifest.firefox.json" "$stage/manifest.json"
+          (cd "$stage" && zip -r "$GITHUB_WORKSPACE/benefits-notifier-firefox.xpi" .)
+          ls -lh benefits-notifier-firefox.xpi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            benefits-notifier-chrome.zip
+            benefits-notifier-firefox.xpi
